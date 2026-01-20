@@ -194,3 +194,4 @@ A clean, production‑ready task manager built with **Next.js 14**, **Node.js/Ex
 **Built with ❤️ using modern web technologies**
 
 Tech Stack: Next.js 14 | Node.js | TypeScript | Prisma | PostgreSQL | Tailwind CSS | shadcn/ui | Framer Motion | Zustand | React Query
+

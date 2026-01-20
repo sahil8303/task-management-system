@@ -1,16 +1,11 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
-/**
- * Merge Tailwind CSS classes with clsx
- */
+// standard tailwind merger
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Format date to readable string
- */
 export function formatDate(date: string | Date): string {
   const d = new Date(date)
   return new Intl.DateTimeFormat('en-US', {
@@ -20,11 +15,9 @@ export function formatDate(date: string | Date): string {
   }).format(d)
 }
 
-/**
- * Format date with time
- */
+// same as above but with time
 export function formatDateTime(date: string | Date): string {
-  const d = new Date(date)
+const d = new Date(date)
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -34,28 +27,15 @@ export function formatDateTime(date: string | Date): string {
   }).format(d)
 }
 
-/**
- * Check if date is overdue
- */
-export function isOverdue(date: string | Date): boolean {
-  return new Date(date) < new Date()
-}
+export function isOverdue(date: string | Date): boolean { return new Date(date) < new Date() }
 
-/**
- * Get initials from name
- */
+// gets the first 2 letters
 export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase()
     .slice(0, 2)
 }
 
-/**
- * Debounce function
- */
+// grabbed this from internet
 export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
@@ -67,7 +47,6 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
       timeout = null
       func(...args)
     }
-    
     if (timeout) {
       clearTimeout(timeout)
     }
@@ -75,36 +54,31 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   }
 }
 
-/**
- * Export tasks to CSV
- */
+// CSV export functionality
 export function exportToCSV(tasks: unknown[], filename: string): void {
   const csvContent = convertToCSV(tasks)
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
   
+  const url = URL.createObjectURL(blob)
   link.setAttribute('href', url)
-  link.setAttribute('download', filename)
+    link.setAttribute('download', filename)
   link.style.visibility = 'hidden'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
 }
 
-/**
- * Convert array of objects to CSV string
- */
+// helper for the csv thing
 function convertToCSV(data: unknown[]): string {
   if (!data || data.length === 0) return ''
   
   const headers = Object.keys(data[0] as object)
   const csvRows = []
   
-  // Add header row
+  // headers
   csvRows.push(headers.join(','))
   
-  // Add data rows
   for (const row of data) {
     const values = headers.map((header) => {
       const value = (row as Record<string, unknown>)[header]
@@ -112,13 +86,9 @@ function convertToCSV(data: unknown[]): string {
     })
     csvRows.push(values.join(','))
   }
-  
   return csvRows.join('\n')
 }
 
-/**
- * Export tasks to JSON
- */
 export function exportToJSON(tasks: unknown[], filename: string): void {
   const jsonContent = JSON.stringify(tasks, null, 2)
   const blob = new Blob([jsonContent], { type: 'application/json' })
@@ -127,7 +97,7 @@ export function exportToJSON(tasks: unknown[], filename: string): void {
   
   link.setAttribute('href', url)
   link.setAttribute('download', filename)
-  link.style.visibility = 'hidden'
+    link.style.visibility = 'hidden' // hide it
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
