@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && npx prisma generate && npx prisma db push",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -20,7 +20,6 @@
     "prisma",
     "typescript"
   ],
-  "author": "",
   "license": "MIT",
   "dependencies": {
     "@prisma/client": "^5.22.0",
