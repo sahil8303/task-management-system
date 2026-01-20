@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, TokenPayload } from '../lib/jwt';
 
-// Extend Express Request type to include user
+// Extend Express Request type so TS doesnt complain about req.user
 declare global {
   namespace Express {
     interface Request {
@@ -10,15 +10,12 @@ declare global {
   }
 }
 
-/**
- * Authentication middleware - verifies JWT access token
- * Extracts token from Authorization header (Bearer token)
- */
+// Auth middleware - checks if the user is logged in via JWT
 export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  try {
-    // Get token from Authorization header
+try {
     const authHeader = req.headers.authorization;
 
+    // check if header exists and starts with Bearer
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({
         success: false,
@@ -28,17 +25,18 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    // Extract token
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    // get the token (stripping 'Bearer ')
+    const token = authHeader.substring(7); 
 
-    // Verify token
+    // verify it
     const payload = verifyAccessToken(token);
 
-    // Attach user info to request
+    // stick payload on the request
     req.user = payload;
 
     next();
   } catch (error) {
+    // handle expired tokens specifically
     if (error instanceof Error) {
       if (error.message === 'Access token expired') {
         res.status(401).json({
@@ -50,6 +48,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
       }
     }
 
+    // if anything else goes wrong its just invalid
     res.status(401).json({
       success: false,
       message: 'Invalid authentication',

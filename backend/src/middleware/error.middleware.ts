@@ -16,59 +16,52 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Global error handler middleware
- * Handles all errors and sends appropriate responses
- */
+// this handles basically everything that goes wrong
 export const errorHandler = (
   err: Error | ApiError | ZodError,
   _req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
-  // Default error
+  // default to 500 if we dont know what happened
   let statusCode = 500;
   let message = 'Internal server error';
   let errors: unknown = undefined;
 
-  // Handle Zod validation errors
+  // check if its a zod validation thing
   if (err instanceof ZodError) {
     statusCode = 400;
     message = 'Validation error';
+    // map the errors so the frontend can actually read them
     errors = err.errors.map((e) => ({
       field: e.path.join('.'),
       message: e.message,
     }));
-  }
-  // Handle custom API errors
-  else if (err instanceof ApiError) {
+  } else if (err instanceof ApiError) {
+    // this is for errors we throw on purpose
     statusCode = err.statusCode;
     message = err.message;
     errors = err.errors;
-  }
-  // Handle other errors
-  else if (err instanceof Error) {
+  } else if (err instanceof Error) {
     message = err.message;
   }
 
-  // Log error in development
+  // only log in dev... dont want to spam production logs
   if (process.env.NODE_ENV === 'development') {
-    console.error('Error:', err);
+    console.error('DEBUG ERROR:', err);
   }
 
-  // Send error response
+  // build the response object
   const response: Record<string, unknown> = {
     success: false,
-    message:
-      process.env.NODE_ENV === 'production' && statusCode === 500
+    message: process.env.NODE_ENV === 'production' && statusCode === 500
         ? 'Internal server error'
         : message,
   };
 
-  if (errors !== undefined) {
-    response.errors = errors;
-  }
+  if (errors !== undefined) response.errors = errors;
 
+  // send stack trace if we are debugging
   if (process.env.NODE_ENV === 'development') {
     response.stack = err instanceof Error ? err.stack : undefined;
   }
@@ -76,9 +69,7 @@ export const errorHandler = (
   res.status(statusCode).json(response);
 };
 
-/**
- * 404 Not Found handler
- */
+// 404 handler for when they hit a route that doesnt exist
 export const notFoundHandler = (req: Request, res: Response): void => {
   res.status(404).json({
     success: false,
