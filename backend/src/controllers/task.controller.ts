@@ -12,14 +12,12 @@ import { Prisma } from '@prisma/client';
 /**
  * Get all tasks for the authenticated user
  * GET /api/tasks
- * Query params: limit, offset, status, search, sortBy, sortOrder, priority
  */
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
     throw new ApiError(401, 'Unauthorized');
   }
 
-  // Validate and parse query parameters
   const query: TaskQueryInput = taskQuerySchema.parse({
     limit: req.query.limit || '10',
     offset: req.query.offset || '0',
@@ -30,35 +28,29 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     priority: req.query.priority,
   });
 
-  // Build where clause
   const where: Prisma.TaskWhereInput = {
     userId: req.user.userId,
   };
 
-  // Filter by status
   if (query.status && query.status !== 'all') {
     where.status = query.status as 'PENDING' | 'COMPLETED';
   }
 
-  // Filter by priority
   if (query.priority) {
     where.priority = query.priority;
   }
 
-  // Search by title
+  // ✅ FIXED: SQLite-safe search (removed `mode: "insensitive"`)
   if (query.search) {
     where.title = {
       contains: query.search,
-      mode: 'insensitive',
     };
   }
 
-  // Build orderBy clause
   const orderBy: Prisma.TaskOrderByWithRelationInput = {
     [query.sortBy || 'createdAt']: query.sortOrder || 'desc',
   };
 
-  // Get tasks with pagination
   const [tasks, total] = await Promise.all([
     prisma.task.findMany({
       where,
@@ -79,7 +71,6 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     prisma.task.count({ where }),
   ]);
 
-  // Calculate stats
   const stats = await prisma.task.groupBy({
     by: ['status'],
     where: { userId: req.user.userId },
@@ -87,7 +78,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
   });
 
   const statsObject = {
-    total: total,
+    total,
     pending: stats.find((s) => s.status === 'PENDING')?._count || 0,
     completed: stats.find((s) => s.status === 'COMPLETED')?._count || 0,
   };
@@ -108,218 +99,104 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * Get a single task by ID
- * GET /api/tasks/:id
+ * Get a single task
  */
 export const getTaskById = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    throw new ApiError(401, 'Unauthorized');
-  }
-
-  const { id } = req.params;
+  if (!req.user) throw new ApiError(401, 'Unauthorized');
 
   const task = await prisma.task.findFirst({
-    where: {
-      id,
-      userId: req.user.userId,
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      priority: true,
-      dueDate: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    where: { id: req.params.id, userId: req.user.userId },
   });
 
-  if (!task) {
-    throw new ApiError(404, 'Task not found');
-  }
+  if (!task) throw new ApiError(404, 'Task not found');
 
-  res.json({
-    success: true,
-    data: { task },
-  });
+  res.json({ success: true, data: { task } });
 };
 
 /**
- * Create a new task
- * POST /api/tasks
+ * Create task
  */
 export const createTask = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    throw new ApiError(401, 'Unauthorized');
-  }
+  if (!req.user) throw new ApiError(401, 'Unauthorized');
 
-  // Validate request body
-  const validatedData = createTaskSchema.parse(req.body);
+  const data = createTaskSchema.parse(req.body);
 
-  // Create task
   const task = await prisma.task.create({
     data: {
-      title: validatedData.title,
-      description: validatedData.description,
-      priority: validatedData.priority || 'MEDIUM',
-      dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+      title: data.title,
+      description: data.description,
+      priority: data.priority || 'MEDIUM',
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
       userId: req.user.userId,
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      priority: true,
-      dueDate: true,
-      createdAt: true,
-      updatedAt: true,
     },
   });
 
-  res.status(201).json({
-    success: true,
-    message: 'Task created successfully',
-    data: { task },
-  });
+  res.status(201).json({ success: true, data: { task } });
 };
 
 /**
- * Update a task
- * PATCH /api/tasks/:id
+ * Update task
  */
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    throw new ApiError(401, 'Unauthorized');
-  }
+  if (!req.user) throw new ApiError(401, 'Unauthorized');
 
-  const { id } = req.params;
-
-  // Check if task exists and belongs to user
-  const existingTask = await prisma.task.findFirst({
-    where: {
-      id,
-      userId: req.user.userId,
-    },
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, userId: req.user.userId },
   });
 
-  if (!existingTask) {
-    throw new ApiError(404, 'Task not found');
-  }
+  if (!existing) throw new ApiError(404, 'Task not found');
 
-  // Validate request body
-  const validatedData = updateTaskSchema.parse(req.body);
+  const data = updateTaskSchema.parse(req.body);
 
-  // Update task
   const task = await prisma.task.update({
-    where: { id },
+    where: { id: req.params.id },
     data: {
-      ...(validatedData.title && { title: validatedData.title }),
-      ...(validatedData.description !== undefined && { description: validatedData.description }),
-      ...(validatedData.status && { status: validatedData.status }),
-      ...(validatedData.priority && { priority: validatedData.priority }),
-      ...(validatedData.dueDate !== undefined && {
-        dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+      ...(data.title && { title: data.title }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.status && { status: data.status }),
+      ...(data.priority && { priority: data.priority }),
+      ...(data.dueDate !== undefined && {
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
       }),
     },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      priority: true,
-      dueDate: true,
-      createdAt: true,
-      updatedAt: true,
-    },
   });
 
-  res.json({
-    success: true,
-    message: 'Task updated successfully',
-    data: { task },
-  });
+  res.json({ success: true, data: { task } });
 };
 
 /**
- * Delete a task
- * DELETE /api/tasks/:id
+ * Delete task
  */
 export const deleteTask = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    throw new ApiError(401, 'Unauthorized');
-  }
+  if (!req.user) throw new ApiError(401, 'Unauthorized');
 
-  const { id } = req.params;
-
-  // Check if task exists and belongs to user
-  const existingTask = await prisma.task.findFirst({
-    where: {
-      id,
-      userId: req.user.userId,
-    },
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, userId: req.user.userId },
   });
 
-  if (!existingTask) {
-    throw new ApiError(404, 'Task not found');
-  }
+  if (!existing) throw new ApiError(404, 'Task not found');
 
-  // Delete task
-  await prisma.task.delete({
-    where: { id },
-  });
+  await prisma.task.delete({ where: { id: req.params.id } });
 
-  res.json({
-    success: true,
-    message: 'Task deleted successfully',
-  });
+  res.json({ success: true, message: 'Task deleted successfully' });
 };
 
 /**
- * Toggle task status (PENDING <-> COMPLETED)
- * PATCH /api/tasks/:id/toggle
+ * Toggle task status
  */
 export const toggleTaskStatus = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    throw new ApiError(401, 'Unauthorized');
-  }
+  if (!req.user) throw new ApiError(401, 'Unauthorized');
 
-  const { id } = req.params;
-
-  // Check if task exists and belongs to user
-  const existingTask = await prisma.task.findFirst({
-    where: {
-      id,
-      userId: req.user.userId,
-    },
+  const task = await prisma.task.findFirst({
+    where: { id: req.params.id, userId: req.user.userId },
   });
 
-  if (!existingTask) {
-    throw new ApiError(404, 'Task not found');
-  }
+  if (!task) throw new ApiError(404, 'Task not found');
 
-  // Toggle status
-  const newStatus = existingTask.status === 'PENDING' ? 'COMPLETED' : 'PENDING';
-
-  const task = await prisma.task.update({
-    where: { id },
-    data: { status: newStatus },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      priority: true,
-      dueDate: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+  const updated = await prisma.task.update({
+    where: { id: req.params.id },
+    data: { status: task.status === 'PENDING' ? 'COMPLETED' : 'PENDING' },
   });
 
-  res.json({
-    success: true,
-    message: 'Task status toggled successfully',
-    data: { task },
-  });
+  res.json({ success: true, data: { updated } });
 };
